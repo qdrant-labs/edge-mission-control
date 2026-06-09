@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>How Text Finds Images · Qdrant Edge Demo</title>
+<style>
+  :root {
+    --bg: #07070f; --panel: #0c0d1a; --panel2: #101122; --border: #262945;
+    --text: #f2f3fa; --dim: #b0b4d2; --faint: #8085ab;
+    --red: #ef2d5e; --green: #34f0b0; --amber: #ffbe66; --blue: #8aa4ff;
+    --mono: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: var(--mono);
+    line-height: 1.7;
+    padding: 60px 24px 100px;
+  }
+  main { max-width: 880px; margin: 0 auto; }
+  h1 { font-size: 34px; font-weight: 700; letter-spacing: 1px; margin-bottom: 8px; }
+  h1 b { color: var(--red); }
+  .subtitle { color: var(--dim); font-size: 17px; margin-bottom: 50px; }
+  h2 {
+    font-size: 15px; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--amber); margin: 56px 0 18px; font-weight: 700;
+  }
+  p { font-size: 16px; color: var(--dim); margin-bottom: 16px; }
+  p b, p strong { color: var(--text); }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 26px 30px; margin: 22px 0;
+  }
+  .wrong { border-left: 4px solid var(--red); }
+  .right { border-left: 4px solid var(--green); }
+  .card .tag { font-size: 12px; letter-spacing: 2px; font-weight: 700; display: block; margin-bottom: 10px; }
+  .wrong .tag { color: var(--red); }
+  .right .tag { color: var(--green); }
+  code {
+    background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 4px; padding: 1px 7px; font-size: 14px; color: var(--green);
+  }
+  .diagram { margin: 30px 0; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+  .diagram svg { width: 100%; height: auto; display: block; }
+  .legend { display: flex; gap: 28px; justify-content: center; padding-top: 14px; font-size: 13px; color: var(--dim); }
+  .legend span::before { content: "■ "; }
+  .legend .l-img::before { color: var(--blue); }
+  .legend .l-txt::before { color: var(--green); }
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14.5px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border); }
+  th { color: var(--faint); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; }
+  td:first-child { color: var(--text); white-space: nowrap; }
+  td { color: var(--dim); }
+  .three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin: 22px 0; }
+  .three .card { margin: 0; padding: 20px 22px; }
+  .three h3 { font-size: 15px; color: var(--text); margin-bottom: 8px; }
+  .three p { font-size: 13.5px; margin: 0; }
+  .three .op { color: var(--green); font-size: 12.5px; display: block; margin-top: 12px; }
+  .score-band { position: relative; height: 64px; margin: 26px 0 10px; }
+  .band-axis { position: absolute; top: 28px; left: 0; right: 0; height: 2px; background: var(--border); }
+  .band-zone { position: absolute; top: 18px; height: 22px; border-radius: 4px; }
+  .band-label { position: absolute; top: 46px; font-size: 12px; color: var(--faint); }
+  footer { margin-top: 70px; color: var(--faint); font-size: 13px; border-top: 1px solid var(--border); padding-top: 22px; }
+  footer a { color: var(--blue); text-decoration: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>HOW TEXT FINDS IMAGES <b>// QDRANT EDGE DEMO</b></h1>
+  <div class="subtitle">No labels. No text-to-image generation. One shared vector space.</div>
+
+  <div class="card wrong">
+    <span class="tag">THE INTUITIVE (WRONG) MODEL</span>
+    <p>"We store images, label each one in English, then match the search text against
+    the labels. Somewhere a text-to-image model translates between the two."</p>
+    <p style="margin:0">Nothing like this happens. <b>The images are never labeled</b>, and nothing is ever generated.</p>
+  </div>
+
+  <div class="card right">
+    <span class="tag">WHAT ACTUALLY HAPPENS</span>
+    <p style="margin:0">A CLIP-style dual encoder (<b>SigLIP2</b>) has two separate towers: one reads images, one reads text.
+    Both output vectors in the <b>same 768-dimensional space</b>. They were trained on billions of
+    image-caption pairs with one rule: a matching image and caption must land <b>close together</b>;
+    a mismatched pair must land far apart. After training, the photo of a shopping cart and the words
+    "a shopping cart" end up neighbors <b>by construction</b>.</p>
+  </div>
+
+  <h2>The Shared Space</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 860 330">
+      <!-- image tower -->
+      <rect x="20" y="40" width="190" height="64" rx="8" fill="#101122" stroke="#262945"/>
+      <text x="115" y="66" fill="#f2f3fa" font-size="14" text-anchor="middle" font-family="monospace">camera frame</text>
+      <text x="115" y="88" fill="#8085ab" font-size="11" text-anchor="middle" font-family="monospace">(pixels)</text>
+      <rect x="20" y="220" width="190" height="64" rx="8" fill="#101122" stroke="#262945"/>
+      <text x="115" y="246" fill="#f2f3fa" font-size="14" text-anchor="middle" font-family="monospace">"a shopping cart"</text>
+      <text x="115" y="268" fill="#8085ab" font-size="11" text-anchor="middle" font-family="monospace">(your query, or a HUD label)</text>
+
+      <rect x="280" y="40" width="170" height="64" rx="8" fill="#0c0d1a" stroke="#8aa4ff"/>
+      <text x="365" y="66" fill="#8aa4ff" font-size="13" text-anchor="middle" font-family="monospace">IMAGE ENCODER</text>
+      <text x="365" y="88" fill="#8085ab" font-size="11" text-anchor="middle" font-family="monospace">runs on-device, ~32ms</text>
+      <rect x="280" y="220" width="170" height="64" rx="8" fill="#0c0d1a" stroke="#34f0b0"/>
+      <text x="365" y="246" fill="#34f0b0" font-size="13" text-anchor="middle" font-family="monospace">TEXT ENCODER</text>
+      <text x="365" y="268" fill="#8085ab" font-size="11" text-anchor="middle" font-family="monospace">runs on-device, ~10ms</text>
+
+      <line x1="210" y1="72" x2="280" y2="72" stroke="#3c4064" stroke-width="2"/>
+      <line x1="210" y1="252" x2="280" y2="252" stroke="#3c4064" stroke-width="2"/>
+      <line x1="450" y1="72" x2="540" y2="130" stroke="#8aa4ff" stroke-width="2"/>
+      <line x1="450" y1="252" x2="540" y2="195" stroke="#34f0b0" stroke-width="2"/>
+
+      <!-- shared space -->
+      <rect x="540" y="30" width="300" height="270" rx="10" fill="#0c0d1a" stroke="#262945"/>
+      <text x="690" y="56" fill="#b0b4d2" font-size="12" text-anchor="middle" font-family="monospace" letter-spacing="3">SHARED 768-D SPACE</text>
+      <!-- cart cluster -->
+      <circle cx="640" cy="140" r="5" fill="#8aa4ff"/>
+      <circle cx="658" cy="128" r="5" fill="#8aa4ff"/>
+      <circle cx="650" cy="155" r="5" fill="#8aa4ff"/>
+      <circle cx="668" cy="145" r="7" fill="#34f0b0"/>
+      <text x="700" y="120" fill="#8085ab" font-size="11" font-family="monospace">cart frames + query</text>
+      <!-- market cluster -->
+      <circle cx="600" cy="230" r="5" fill="#8aa4ff"/>
+      <circle cx="585" cy="245" r="5" fill="#8aa4ff"/>
+      <circle cx="605" cy="252" r="5" fill="#8aa4ff"/>
+      <text x="585" y="282" fill="#8085ab" font-size="11" font-family="monospace">kitchen frames</text>
+      <!-- street cluster -->
+      <circle cx="780" cy="220" r="5" fill="#8aa4ff"/>
+      <circle cx="765" cy="238" r="5" fill="#8aa4ff"/>
+      <circle cx="790" cy="245" r="5" fill="#8aa4ff"/>
+      <text x="752" y="275" fill="#8085ab" font-size="11" font-family="monospace">bedroom frames</text>
+      <!-- nearest neighbor ring -->
+      <circle cx="652" cy="142" r="32" fill="none" stroke="#ef2d5e" stroke-width="1.6" stroke-dasharray="5 4"/>
+      <text x="652" y="92" fill="#ef2d5e" font-size="11" text-anchor="middle" font-family="monospace">nearest neighbors = results</text>
+    </svg>
+    <div class="legend">
+      <span class="l-img">image vectors (stored in the Edge shard)</span>
+      <span class="l-txt">text vector (computed per query, never stored)</span>
+    </div>
+  </div>
+
+  <p>Search is therefore a single operation: embed the query text, find the nearest image
+  vectors by cosine similarity in the shard. The frames were never tagged, captioned, or
+  classified when stored. Meaning lives in <b>where</b> the vector sits, not in any label.</p>
+
+  <h2>One Primitive, Three Features</h2>
+  <div class="three">
+    <div class="card">
+      <h3>Memory Search</h3>
+      <p>Your query goes through the text encoder; the shard returns the nearest stored frames.</p>
+      <span class="op">text → k nearest images</span>
+    </div>
+    <div class="card">
+      <h3>Live Recognition (HUD)</h3>
+      <p>15 phrases were embedded once at boot. Each new frame is compared against all of them;
+      the top scorers are shown. Recomputed every frame, stored nowhere.</p>
+      <span class="op">image → k nearest texts</span>
+    </div>
+    <div class="card">
+      <h3>Teach a Concept</h3>
+      <p>Your phrase becomes one more text vector in the comparison set. ~10ms, no retraining.
+      The model already "knows" the concept; you give it the words.</p>
+      <span class="op">+1 text vector</span>
+    </div>
+  </div>
+  <p>This is the demo's deeper point: once everything is a vector in one space,
+  <b>perception, recognition, and recall are the same query</b> against the same on-device engine.</p>
+
+  <h2>Why Scores Look Low (and That's Normal)</h2>
+  <div class="score-band">
+    <div class="band-axis"></div>
+    <div class="band-zone" style="left:8%; width:20%; background:rgba(239,45,94,.25); border:1px solid rgba(239,45,94,.6)"></div>
+    <div class="band-label" style="left:8%">below 0.08 · unrelated</div>
+    <div class="band-zone" style="left:36%; width:14%; background:rgba(255,190,102,.25); border:1px solid rgba(255,190,102,.6)"></div>
+    <div class="band-label" style="left:36%">0.08–0.10 · weak / guessing</div>
+    <div class="band-zone" style="left:56%; width:22%; background:rgba(52,240,176,.25); border:1px solid rgba(52,240,176,.6)"></div>
+    <div class="band-label" style="left:56%">0.10–0.20 · solid match</div>
+  </div>
+  <p>Text vectors and image vectors occupy slightly different regions of the space (the
+  "modality gap"), so cross-modal cosine scores never approach 1.0. A 0.15 is a confident hit.
+  <b>Ranking is what matters, not the absolute number.</b> The demo dims results and warns
+  "weak match" when the best score falls below 0.09.</p>
+
+  <h2>Honest Limits of the Current Model</h2>
+  <table>
+    <tr><th>Limit</th><th>Why</th></tr>
+    <tr><td>Small objects get missed</td><td>Frames are seen at 224×224 in 16-pixel patches (siglip2-base). A small distant object is a few patches.</td></tr>
+    <tr><td>Composition is fuzzy</td><td>"A man paying a vendor" tests relations between objects; contrastive training mostly learns <i>what</i> is present, not <i>who does what to whom</i>.</td></tr>
+    <tr><td>Phrasing matters</td><td>Concrete visual nouns ("striped awning") beat abstract phrases ("a place to buy lunch").</td></tr>
+    <tr><td>It can't see the future</td><td>Memory only contains what the robot has already seen. Chips unlock as the mission progresses for exactly this reason.</td></tr>
+  </table>
+  <p>These are properties of the edge-sized encoder (SigLIP2-base, ~800MB for both
+  towers), not of Qdrant Edge. The engine searches whatever vectors you give it; a stronger
+  encoder drops in without changing a line of the search path.</p>
+
+  <footer>
+    Qdrant Edge demo · the encoder is swappable, the primitive stays the same ·
+    <a href="https://qdrant.tech/edge/">qdrant.tech/edge</a>
+  </footer>
+</main>
+</body>
+</html>

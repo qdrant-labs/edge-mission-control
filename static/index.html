@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Qdrant Edge · Mission Control</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div id="app">
+  <header id="topbar">
+    <div class="brand">
+      <img class="brand-img" src="/static/brand/qdrant-brandmark-white.svg" alt="Qdrant">
+      <span class="brand-name">QDRANT <b>EDGE</b></span>
+      <span class="brand-sep">·</span>
+      <span class="brand-sub">Mission Control</span>
+    </div>
+    <div id="scene-badge" class="scene-badge"></div>
+    <button id="replay-btn" class="hidden">⟳ REPLAY MISSION</button>
+    <div class="unit-tag">
+      <span class="unit-dot"></span> EDGE-01 · HOME UNIT
+    </div>
+  </header>
+
+  <main id="grid">
+    <section id="feed-panel" class="panel">
+      <div class="panel-title">LIVE FEED <span id="mission-clock">T+00:00</span></div>
+      <div id="feed-wrap">
+        <video id="feed" src="/footage/mission.mp4" muted playsinline preload="auto"></video>
+        <div class="hud">
+          <div class="hud-corner tl"></div><div class="hud-corner tr"></div>
+          <div class="hud-corner bl"></div><div class="hud-corner br"></div>
+          <div class="hud-rec"><span class="rec-dot"></span>REC</div>
+          <div id="hud-labels">
+            <div class="hud-labels-title">RECOGNIZED · ON-DEVICE</div>
+            <div id="hud-label-lines"></div>
+            <input id="label-input" type="text" autocomplete="off" spellcheck="false"
+                   placeholder="+ teach a concept…">
+          </div>
+          <div id="capture-flash"></div>
+          <div id="pipeline-ticker">
+            <span class="tick-label">LOOP</span>
+            <span class="tick-step">capture</span><span class="tick-arrow">→</span>
+            <span class="tick-step">embed <b id="tick-embed">—</b></span><span class="tick-arrow">→</span>
+            <span class="tick-step">store <b id="tick-upsert">—</b></span><span class="tick-arrow">→</span>
+            <span class="tick-step">memory <b id="tick-count">0</b></span>
+          </div>
+        </div>
+      </div>
+      <div id="caption-bar"><span id="caption-text"></span></div>
+    </section>
+
+    <aside id="side">
+      <section class="panel" id="map-panel">
+        <div class="panel-title">ON-DEVICE MEMORY <span id="map-count">0 vectors</span></div>
+        <canvas id="map"></canvas>
+        <div id="map-tip" class="hidden"><img alt=""><span></span></div>
+      </section>
+
+      <section class="panel" id="metrics-panel">
+        <div class="metrics-row">
+          <div class="metric"><div class="metric-value" id="m-vectors">0</div><div class="metric-label">Vectors</div></div>
+          <div class="metric"><div class="metric-value" id="m-disk">0.0<small> MB</small></div><div class="metric-label">Shard On Disk</div></div>
+          <div class="metric"><div class="metric-value" id="m-embed">—</div><div class="metric-label">Embed / Frame</div></div>
+          <div class="metric"><div class="metric-value" id="m-upsert">—</div><div class="metric-label">Upsert</div></div>
+        </div>
+        <div class="lat-strip">
+          <div class="lat-title">SEARCH LATENCY <span class="lat-scale">log scale</span></div>
+          <canvas id="latbar"></canvas>
+        </div>
+      </section>
+
+      <section class="panel" id="search-panel">
+        <div class="panel-title">SEARCH LOCAL MEMORY <span id="search-badge"></span></div>
+        <div id="query-box">
+          <span class="prompt">›</span>
+          <input id="query-input" type="text" autocomplete="off" spellcheck="false"
+                 placeholder="search what the robot has seen…">
+        </div>
+        <div id="chips">
+          <button class="chip" data-after="21">a fireplace</button>
+          <button class="chip" data-after="34">a glass dining table</button>
+          <button class="chip" data-after="60">a pool table</button>
+          <button class="chip" data-after="105">a bed with pillows</button>
+          <button class="chip" data-after="118">a white bathtub</button>
+        </div>
+        <div id="results"></div>
+      </section>
+
+      <section class="panel" id="uplink-panel">
+        <div class="panel-title">UPLINK · CLOUD SYNC
+          <span class="uplink-controls">
+            <button id="link-toggle">CUT LINK</button>
+            <span id="link-pill" class="pill ok">CONNECTED</span>
+          </span>
+        </div>
+        <div class="panel-sub">New memories queue on-device and stream to the cluster when the link allows</div>
+        <div class="sync-row">
+          <div class="sync-col">
+            <div class="sync-num" id="s-queue">0</div>
+            <div class="sync-label">Queued On-Device</div>
+            <div class="queue-bar"><div id="queue-fill"></div></div>
+          </div>
+          <div class="sync-col">
+            <div class="sync-num"><span id="s-cloud">0</span><span class="sync-of"> / <span id="s-edge">0</span></span></div>
+            <div class="sync-label">Cloud / Edge Vectors</div>
+            <div class="queue-bar"><div id="cloud-fill"></div></div>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </main>
+</div>
+
+<div id="title-overlay" class="overlay">
+  <div class="title-card">
+    <div class="title-logo">
+      <img class="logo-img" src="/static/brand/qdrant-logo-white.svg" alt="Qdrant">
+      <span class="logo-edge">EDGE</span>
+    </div>
+    <div class="title-sub">Vector search, in-process, where AI operates</div>
+    <div class="title-hint">press space to begin</div>
+  </div>
+</div>
+
+<div id="boot-overlay" class="overlay hidden">
+  <div id="boot-terminal"></div>
+</div>
+
+<div id="zoom-overlay" class="hidden">
+  <div id="zoom-card">
+    <img id="zoom-img" alt="memory">
+    <div id="zoom-meta"></div>
+  </div>
+</div>
+
+<div id="closing-overlay" class="overlay hidden">
+  <div class="title-card">
+    <div class="title-logo">
+      <img class="logo-img" src="/static/brand/qdrant-logo-white.svg" alt="Qdrant">
+      <span class="logo-edge">EDGE</span>
+    </div>
+    <div class="closing-tag">Memory where AI operates</div>
+    <div class="closing-points">
+      <span>In-Process</span><i>·</i><span>No Server</span><i>·</i><span>Offline-First</span><i>·</i><span>Cloud Sync</span>
+    </div>
+    <div class="closing-url">qdrant.tech/edge</div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

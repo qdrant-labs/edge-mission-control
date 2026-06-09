@@ -1,0 +1,24 @@
+[project]
+name = "edge-mission-control"
+version = "0.1.0"
+description = "Qdrant Edge launch demo: self-playing drone inspection mission control"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "qdrant-edge-py>=0.1.0",
+    "fastembed>=0.7.4",
+    "opencv-python>=4.12.0",
+    "numpy>=2.0.0,<2.3.0",
+    "pillow>=11.0.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+    "websockets>=13.0",
+    "qdrant-client>=1.16.2",
+]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "playwright>=1.60.0",
+]

@@ -1,0 +1,5 @@
+.venv/
+edge-data/
+footage/*.mp4
+footage/projection.npz
+__pycache__/
