@@ -12,7 +12,6 @@ dependencies = [
     "fastapi>=0.115.0",
     "uvicorn>=0.30.0",
     "websockets>=13.0",
-    "qdrant-client>=1.16.2",
     "torch>=2.9",
     "torchvision>=0.27",
     "ultralytics>=8.4",

@@ -41,11 +41,6 @@ CANDIDATES = [
 ]
 
 
-class StubSync:
-    def enqueue(self, *a, **k):
-        pass
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--seconds", type=float, default=None,
@@ -67,8 +62,7 @@ def main():
     projector.load()
 
     events = []
-    registry = ObjectRegistry(encoder, store, StubSync(), projector, captioner,
-                              events.append)
+    registry = ObjectRegistry(encoder, store, projector, captioner, events.append)
     captioner.on_caption = registry.attach_caption
     captioner.start()
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>Qdrant Edge · Mission Control</title>
-<link rel="stylesheet" href="/static/style.css?v=om1">
+<link rel="stylesheet" href="/static/style.css?v=om2">
 </head>
 <body>
 
@@ -99,27 +99,6 @@
         <div id="results"></div>
       </section>
 
-      <section class="panel" id="uplink-panel">
-        <div class="panel-title">UPLINK · CLOUD SYNC
-          <span class="uplink-controls">
-            <button id="link-toggle">CUT LINK</button>
-            <span id="link-pill" class="pill ok">CONNECTED</span>
-          </span>
-        </div>
-        <div class="panel-sub">New memories queue on-device and stream to the cluster when the link allows</div>
-        <div class="sync-row">
-          <div class="sync-col">
-            <div class="sync-num" id="s-queue">0</div>
-            <div class="sync-label">Queued On-Device</div>
-            <div class="queue-bar"><div id="queue-fill"></div></div>
-          </div>
-          <div class="sync-col">
-            <div class="sync-num"><span id="s-cloud">0</span><span class="sync-of"> / <span id="s-edge">0</span></span></div>
-            <div class="sync-label">Cloud / Edge Vectors</div>
-            <div class="queue-bar"><div id="cloud-fill"></div></div>
-          </div>
-        </div>
-      </section>
     </aside>
   </main>
 </div>
@@ -154,12 +133,12 @@
     </div>
     <div class="closing-tag">Memory where AI operates</div>
     <div class="closing-points">
-      <span>In-Process</span><i>·</i><span>No Server</span><i>·</i><span>Offline-First</span><i>·</i><span>Cloud Sync</span>
+      <span>In-Process</span><i>·</i><span>No Server</span><i>·</i><span>No Network</span><i>·</i><span>Open Vocabulary</span>
     </div>
     <div class="closing-url">qdrant.tech/edge</div>
   </div>
 </div>
 
-<script src="/static/app.js?v=om1"></script>
+<script src="/static/app.js?v=om2"></script>
 </body>
 </html>

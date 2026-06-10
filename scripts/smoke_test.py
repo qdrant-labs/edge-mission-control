@@ -52,13 +52,13 @@ async def main():
     for q in queries:
         tops = ", ".join(
             f"{r['cls']}@{r['t_first']:.0f}s ({r['score']})" for r in q["objects"])
-        print(f"query '{q['text']}': {q['latency_us']}us offline={q['offline']} -> {tops}")
+        print(f"query '{q['text']}': {q['latency_us']}us -> {tops}")
     if issues:
         print("ISSUES:")
         for i in issues:
             print(" -", i)
         sys.exit(1)
-    required = {"boot_line", "video_start", "frame_ingested", "caption", "sync",
+    required = {"boot_line", "video_start", "frame_ingested", "caption",
                 "scene", "object_discovered", "object_enriched", "inventory"}
     missing = required - set(counts)
     if missing:

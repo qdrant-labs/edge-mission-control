@@ -1,6 +1,6 @@
 """A live demo session: the Edge shard, detector, captioner, ingest pipeline,
-sync worker, and the shared query path used by both interactive commands and
-the auto director."""
+and the shared query path used by both interactive commands and the auto
+director. Everything runs in this one process; nothing leaves the device."""
 
 import asyncio
 import base64
@@ -8,7 +8,6 @@ import logging
 
 import numpy as np
 
-from .cloud_sync import CloudSync
 from .constants import (
     SHARD_DIR,
     THUMBS_DIR,
@@ -27,7 +26,7 @@ BOOT_LINES = [
     "dense: siglip2-base · 768d · cosine   sparse: bm25 over captions",
     "detector: yoloe-11l · open vocabulary · on-device",
     "captioner: florence-2-base · enriching every object it meets",
-    "uplink: CONNECTED · cloud collection ready",
+    "network: NOT REQUIRED · nothing leaves this device",
     "0 objects remembered · patrol start",
 ]
 
@@ -39,7 +38,6 @@ class DemoSession:
         self.captioner = captioner
         self.emit = emit
         self.store = None
-        self.sync = None
         self.pipeline = None
         self.registry = None
         self.projector = None
@@ -50,23 +48,16 @@ class DemoSession:
         self.ready = False
 
         self.store = EdgeStore(SHARD_DIR)
-        self.sync = CloudSync(
-            on_state=lambda q, c, up: self.emit(
-                {"type": "sync", "queue": q, "cloud_count": c, "link_up": up}
-            )
-        )
         self.projector = MemoryMapProjector()
 
         self.emit({"type": "phase", "name": "boot"})
 
         await asyncio.to_thread(self.store.initialize)
-        await asyncio.to_thread(self.sync.initialize)
         await asyncio.to_thread(self.detector.reset)
         self.projector.load()
 
         self.registry = ObjectRegistry(
-            self.encoder, self.store, self.sync, self.projector,
-            self.captioner, self.emit,
+            self.encoder, self.store, self.projector, self.captioner, self.emit,
         )
         self.captioner.on_caption = self.registry.attach_caption
         if self.captioner.thread is None:
@@ -79,7 +70,7 @@ class DemoSession:
 
         self.pipeline = IngestPipeline(
             self.encoder, self.detector, self.registry,
-            self.store, self.sync, self.projector, self.emit,
+            self.store, self.projector, self.emit,
         )
         self.emit({"type": "video_start", "vocab": len(self.detector.vocab)})
         self.pipeline.start()
@@ -89,7 +80,7 @@ class DemoSession:
         """Embed the query, hybrid-search the shard, emit results. Real work."""
         if not self.ready or self.store.count == 0:
             self.emit({"type": "query_result", "text": text, "latency_us": 0,
-                       "offline": False, "objects": [], "moments": []})
+                       "objects": [], "moments": []})
             return
 
         def search():
@@ -138,7 +129,6 @@ class DemoSession:
             "text": text,
             "cls": cls,
             "latency_us": round(micros, 1),
-            "offline": not self.sync.link_up,
             "objects": object_cards,
             "moments": moment_cards,
         })
@@ -171,27 +161,10 @@ class DemoSession:
         self.emit({"type": "caption",
                    "text": f"Now watching for “{text}”. One text embedding, no retraining."})
 
-    def set_link(self, up: bool):
-        if self.sync is None:
-            return
-        self.sync.set_link(up)
-        self.emit(
-            {
-                "type": "caption",
-                "text": (
-                    "Uplink restored. The shard streams its evidence to the cluster."
-                    if up
-                    else "Uplink lost. Watch the loop: nothing slows down, nothing is lost."
-                ),
-            }
-        )
-
     def shutdown(self):
         self.ready = False
         if self.pipeline:
             self.pipeline.stop()
-        if self.sync:
-            self.sync.stop()
         if self.captioner:
             self.captioner.on_caption = None
         if self.store:

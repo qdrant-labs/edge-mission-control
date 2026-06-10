@@ -31,12 +31,11 @@ logger = logging.getLogger(__name__)
 
 
 class IngestPipeline:
-    def __init__(self, encoder, detector, registry, store, sync, projector, emit):
+    def __init__(self, encoder, detector, registry, store, projector, emit):
         self.encoder = encoder
         self.detector = detector
         self.registry = registry
         self.store = store
-        self.sync = sync
         self.projector = projector
         self.emit = emit  # callback(event_dict), thread-safe
         self.is_running = False
@@ -127,7 +126,6 @@ class IngestPipeline:
         }
         point_id = str(uuid.uuid4())
         _, upsert_us = self.store.upsert_frame(point_id, embedding, payload)
-        self.sync.enqueue(point_id, embedding.tolist(), {"kind": "frame", **payload})
 
         # 3. Object identities: confirm tracks, embed crops, caption async.
         crop_embed_ms = self.registry.observe(detections, frame, video_ts)

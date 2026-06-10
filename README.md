@@ -7,7 +7,7 @@ network in the loop.
 ![Mission control during the patrol: live detection boxes over the dining room, a search for a leather lounge chair returning captioned object crops in 0.29 ms, and the object inventory rail filling up](docs/screenshots/mission-control-object-memory.png)
 
 [Watch the full 2:35 demo run](docs/screenshots/edge-demo.mp4): detection,
-search, link loss, live teaching, and reconnect, end to end.
+search, and live teaching, end to end.
 
 A home robot patrols a house. Every object it sees becomes an individual,
 searchable memory, entirely on the device:
@@ -22,7 +22,8 @@ searchable memory, entirely on the device:
   indexes, and facets.
 
 Searches are hybrid queries (dense + BM25 fused with reciprocal rank fusion)
-that run in well under a millisecond, on-device, even with the network cut.
+that run in well under a millisecond. The whole demo is one process on one
+machine: no server, no cloud, no network. Airplane mode changes nothing.
 
 While the 2:33 patrol plays, you drive:
 
@@ -33,9 +34,6 @@ While the 2:33 patrol plays, you drive:
 - **Watch the inventory grow.** Every discovered object lands in the Object
   Memory rail with live per-class facet counts, computed by the shard. Click
   a facet to query that class.
-- **Cut the uplink.** Press Cut Link and watch the loop keep running at full
-  speed while the sync queue grows on-device. Search still works offline.
-  Restore the link and the cloud catches up in seconds.
 - **Teach a concept.** Type a phrase into the detector HUD ("a surfboard")
   and the robot starts detecting it immediately: one text embedding, applied
   live in about 300 ms, no retraining.
@@ -47,25 +45,24 @@ fresh run. Append `?auto` to the URL for a self-playing scripted version
 suited to screen recording.
 
 Everything on screen is real work: real detections, real embeddings, real
-captions, a real Edge shard answering hybrid queries, real measured latency,
-a real Qdrant server receiving the sync. The only theater is the uplink kill
-switch. The cloud round-trip band on the latency strip is a labeled typical
-range, not a measurement.
+captions, a real Edge shard answering hybrid queries, real measured latency.
+The cloud round-trip band on the latency strip is a labeled typical range for
+comparison, not a measurement.
 
 ## Requirements
 
 - [uv](https://docs.astral.sh/uv/) (Python 3.11–3.13 managed automatically)
 - ffmpeg (`brew install ffmpeg`)
-- Docker, to run the Qdrant server that plays the "cloud" cluster
 - Chrome or any modern browser
 - Apple Silicon recommended (the detector and captioner run on MPS). The
   whole pipeline runs at about 1.5x realtime on an M-series CPU/GPU with no
   discrete GPU needed.
 
+No Docker, no Qdrant server, no network after setup.
+
 ## Setup (One Time, ~15 Minutes)
 
 ```bash
-docker run -d -p 6333:6333 qdrant/qdrant   # the "cloud" cluster (required)
 make setup      # python deps + models (~3 GB: SigLIP2, YOLOE, Florence-2)
 make footage    # download the 9 source clips from Pexels (~160 MB)
 make prepare    # stitch mission.mp4, fit the memory map, verify retrieval
@@ -85,10 +82,6 @@ Open http://localhost:8000, make the window full screen, and press Space or
 click when the title card says "press space or click to begin". If the title
 card says "connecting", the server is still warming the models (~40 s after
 launch).
-
-The demo expects the Qdrant container on `localhost:6333` (see `CLOUD_URL` in
-`app/constants.py`); it creates and overwrites a collection named
-`edge_mission_demo`. Without a reachable Qdrant server the demo will not start.
 
 Between runs: use Replay Mission, or restart the server (`make run` wipes all
 demo state) and reload the page.
@@ -128,7 +121,7 @@ network, no server, no IPC.
 
 ## Layout
 
-- `app/session.py` owns a run: shard, sync worker, pipeline, query path.
+- `app/session.py` owns a run: shard, pipeline, query path.
 - `app/pipeline.py` is the live loop: capture, detect, embed, upsert, paced
   to video time.
 - `app/detector.py` wraps YOLOE: open-vocabulary detection + tracking, live
@@ -137,8 +130,6 @@ network, no server, no IPC.
 - `app/captioner.py` is the async Florence-2 enrichment worker.
 - `app/edge_store.py` wraps the Edge shard: dense + sparse vectors, hybrid
   RRF queries, payload indexes, facets.
-- `app/cloud_sync.py` queues points on-device and syncs them to the cluster
-  when the link is up.
 - `app/director.py` is the `?auto` mode script: timeline, captions, queries.
 - `app/constants.py` holds the tunables: detector vocabulary, confirmation
   thresholds, ingest rate, cloud URL.

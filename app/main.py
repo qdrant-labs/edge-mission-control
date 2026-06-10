@@ -84,7 +84,7 @@ async def run_demo(mode: str):
         else:
             await session.start(boot_delay=0.55)
             hub.emit({"type": "caption",
-                      "text": "Search anything you remember. Cut the uplink. Hover the memory map."})
+                      "text": "Search anything you remember. Teach a concept. Hover the memory map."})
             # Silent warm-up so the user's first search shows steady-state latency.
             await asyncio.sleep(2.5)
             await session.warm_query()
@@ -120,9 +120,6 @@ async def websocket_endpoint(ws: WebSocket):
                 if text and session is not None:
                     logger.info("User query: %r (cls=%r)", text, cls)
                     asyncio.create_task(session.run_query(text, cls=cls))
-            elif cmd == "link":
-                if session is not None:
-                    session.set_link(bool(msg.get("up")))
             elif cmd == "label":
                 text = (msg.get("text") or "").strip()[:60]
                 if text and session is not None:

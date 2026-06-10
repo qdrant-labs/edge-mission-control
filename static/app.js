@@ -17,7 +17,6 @@ const state = {
   detectAvg: null,
   embedAvg: null,
   started: false,
-  linkUp: true,
 };
 
 /* ---------- websocket (auto-reconnects across server restarts) ---------- */
@@ -84,7 +83,6 @@ function handle(ev) {
     case "inventory": onInventory(ev); break;
     case "query_typed": typeQuery(ev.text); break;
     case "query_result": showResults(ev); break;
-    case "sync": onSync(ev); break;
     case "caption": showCaption(ev.text); break;
     case "scene": showScene(ev.title); break;
     case "mission_complete": onMissionComplete(ev); break;
@@ -104,7 +102,6 @@ function resetUI() {
   state.objectCount = 0;
   state.detectAvg = null;
   state.embedAvg = null;
-  state.linkUp = true;
 
   const feed = $("feed");
   feed.pause();
@@ -140,16 +137,6 @@ function resetUI() {
   $("m-disk").innerHTML = `0.0<small> MB</small>`;
   $("m-detect").textContent = "—";
   $("map-count").textContent = "0 vectors";
-  $("s-queue").textContent = "0";
-  $("s-cloud").textContent = "0";
-  $("s-edge").textContent = "0";
-  $("queue-fill").style.width = "0%";
-  $("queue-fill").className = "";
-  $("cloud-fill").style.width = "0%";
-  $("cloud-fill").className = "";
-  $("link-pill").textContent = "CONNECTED";
-  $("link-pill").className = "pill ok";
-  $("link-toggle").textContent = "CUT LINK";
 }
 
 /* ---------- boot ---------- */
@@ -198,7 +185,6 @@ function onFrame(ev) {
   $("m-disk").innerHTML = `${(ev.bytes / 1e6).toFixed(1)}<small> MB</small>`;
   $("m-detect").innerHTML = `${state.detectAvg.toFixed(0)}<small> ms</small>`;
   $("map-count").textContent = `${total} vectors`;
-  $("s-edge").textContent = total;
 
   updateChips(ev.video_ts);
 }
@@ -410,10 +396,8 @@ function showResults(ev) {
   const badge = $("search-badge");
   badge.textContent = weak
     ? `weak match · maybe not seen yet · ${ms.toFixed(2)} ms`
-    : ev.offline
-      ? `${ms.toFixed(2)} ms · hybrid · OFFLINE`
-      : `${ms.toFixed(2)} ms · hybrid · on-device`;
-  badge.className = weak || ev.offline ? "off" : "";
+    : `${ms.toFixed(2)} ms · hybrid · on-device`;
+  badge.className = weak ? "off" : "";
 
   const wrap = $("results");
   wrap.innerHTML = "";
@@ -484,36 +468,6 @@ function showZoomRaw(thumbB64, metaHtml) {
   $("zoom-overlay").classList.remove("hidden");
 }
 $("zoom-overlay").addEventListener("click", () => $("zoom-overlay").classList.add("hidden"));
-
-/* ---------- uplink ---------- */
-$("link-toggle").addEventListener("click", () => {
-  send({ cmd: "link", up: !state.linkUp });
-});
-
-function onSync(ev) {
-  state.linkUp = ev.link_up;
-  $("s-queue").textContent = ev.queue;
-  $("s-cloud").textContent = ev.cloud_count;
-  const qf = $("queue-fill");
-  qf.style.width = `${Math.min(100, ev.queue * 1.2)}%`;
-  qf.className = ev.queue > 40 ? "danger" : "";
-  const cf = $("cloud-fill");
-  const total = state.edgeCount + state.objectCount;
-  const pct = total ? (ev.cloud_count / total) * 100 : 0;
-  cf.style.width = `${Math.min(100, pct)}%`;
-  cf.className = pct >= 99.5 && total > 0 ? "done" : "";
-
-  const pill = $("link-pill");
-  if (ev.link_up) {
-    pill.textContent = "CONNECTED";
-    pill.className = "pill ok";
-    $("link-toggle").textContent = "CUT LINK";
-  } else {
-    pill.textContent = "LINK LOST";
-    pill.className = "pill lost";
-    $("link-toggle").textContent = "RESTORE LINK";
-  }
-}
 
 /* ---------- narrative ---------- */
 let captionTimer = null;

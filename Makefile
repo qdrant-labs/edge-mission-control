@@ -1,5 +1,3 @@
-CLOUD_PORT ?= 6333
-
 .PHONY: setup footage prepare run test clean
 
 setup:
@@ -24,8 +22,6 @@ prepare:
 	uv run python scripts/test_objects.py
 
 run:
-	@docker ps --format '{{.Ports}}' | grep -q $(CLOUD_PORT) || \
-		echo "Warning: no Qdrant container on port $(CLOUD_PORT). Run: docker run -d -p 6333:6333 qdrant/qdrant"
 	@rm -rf edge-data
 	uv run uvicorn app.main:app --port 8000
 

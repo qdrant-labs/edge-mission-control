@@ -109,10 +109,9 @@ def padded_crop(frame_bgr, box) -> Image.Image:
 class ObjectRegistry:
     """Lives on the ingest thread; attach_caption arrives from the captioner."""
 
-    def __init__(self, encoder, store, sync, projector, captioner, emit):
+    def __init__(self, encoder, store, projector, captioner, emit):
         self.encoder = encoder
         self.store = store
-        self.sync = sync
         self.projector = projector
         self.captioner = captioner
         self.emit = emit
@@ -191,7 +190,6 @@ class ObjectRegistry:
 
         thumb_b64 = self._write_thumb(track.best_crop, rec.thumb_name)
         _, upsert_us = self.store.upsert_object(rec.point_id, embedding, rec.payload())
-        self.sync.enqueue(rec.point_id, embedding.tolist(), rec.payload())
         self.captioner.submit(rec.obj_id, track.best_crop)
 
         self.emit({
@@ -206,16 +204,13 @@ class ObjectRegistry:
         })
 
     def attach_caption(self, obj_id: str, caption: str):
-        """Caption arrived from the enrichment worker: store, index, sync."""
+        """Caption arrived from the enrichment worker: store it and index it."""
         with self._lock:
             rec = self.objects.get(obj_id)
             if rec is None:
                 return
             rec.caption = caption
-            payload = rec.payload()
-            embedding = rec.embedding
         self.store.set_caption(rec.point_id, caption, f"{rec.cls}. {caption}")
-        self.sync.enqueue(rec.point_id, embedding.tolist(), payload)
         self.emit({"type": "object_enriched", "obj": obj_id, "caption": caption})
 
     def overlay(self, detections) -> list:

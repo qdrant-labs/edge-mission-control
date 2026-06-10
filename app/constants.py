@@ -71,8 +71,3 @@ MMR_MAX_CANDIDATES = 100
 # SigLIP2 cosine bands on object crops are higher than on full frames:
 # real object hits 0.12-0.45, absent concepts < 0.10.
 WEAK_OBJECT_SCORE = 0.10
-
-CLOUD_URL = "http://localhost:6333"
-CLOUD_COLLECTION = "edge_mission_demo"
-SYNC_BATCH_SIZE = 24
-SYNC_INTERVAL = 0.35      # seconds between sync batches while link is up
