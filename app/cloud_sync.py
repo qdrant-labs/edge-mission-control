@@ -9,6 +9,7 @@ from qdrant_client import models as rest_models
 from .constants import (
     CLOUD_COLLECTION,
     CLOUD_URL,
+    SPARSE_VECTOR_NAME,
     SYNC_BATCH_SIZE,
     SYNC_INTERVAL,
     VECTOR_DIMENSION,
@@ -30,6 +31,9 @@ class CloudSync:
         self.upload_queue: queue.Queue = queue.Queue()
         self.link_up = True
         self.cloud_count = 0
+        # Object points re-sync when their caption lands; count unique ids so
+        # the cloud tally matches the collection, not the upload volume.
+        self._synced_ids: set = set()
         self.is_running = False
         self.on_state = on_state  # callback(queue_size, cloud_count, link_up)
         self.thread = None
@@ -44,6 +48,9 @@ class CloudSync:
                     size=VECTOR_DIMENSION,
                     distance=rest_models.Distance.COSINE,
                 )
+            },
+            sparse_vectors_config={
+                SPARSE_VECTOR_NAME: rest_models.SparseVectorParams()
             },
         )
         self.cloud_count = 0
@@ -85,7 +92,8 @@ class CloudSync:
 
             try:
                 self.client.upsert(collection_name=CLOUD_COLLECTION, points=batch)
-                self.cloud_count += len(batch)
+                self._synced_ids.update(p.id for p in batch)
+                self.cloud_count = len(self._synced_ids)
             except Exception as e:
                 logger.warning("Sync failed: %s", e)
                 for p in batch:

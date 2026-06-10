@@ -12,21 +12,22 @@ from playwright.sync_api import sync_playwright
 OUT = Path("/tmp/edge-shots")
 OUT.mkdir(exist_ok=True)
 
-# (seconds after pressing space, name). Boot takes ~7.2s, then video starts.
-BOOT = 7.4
+# (seconds after pressing space, name). Boot takes ~8.2s, then video starts.
+BOOT = 8.5
 SHOTS = [
     (1.5, "01-title-boot"),
     (5.0, "02-boot-terminal"),
     (BOOT + 12, "03-act1-ingest"),
-    (BOOT + 27, "04-act1-query-fireplace"),
-    (BOOT + 49, "05-act1-query-kitchen"),
+    (BOOT + 27, "04-act1-query-chair"),
+    (BOOT + 49, "05-act1-query-stools"),
     (BOOT + 57, "06-act2-link-lost"),
     (BOOT + 78, "07-act2-offline-pool"),
-    (BOOT + 105, "08-act2-offline-bed"),
-    (BOOT + 113, "09-act3-reconnect"),
-    (BOOT + 123, "10-act3-query-bathtub"),
-    (BOOT + 133, "11-act3-caught-up"),
-    (BOOT + 146, "12-closing"),
+    (BOOT + 93, "08-act2-teach"),
+    (BOOT + 105, "09-act2-offline-bed"),
+    (BOOT + 113, "10-act3-reconnect"),
+    (BOOT + 123, "11-act3-query-bathtub"),
+    (BOOT + 137, "12-act3-query-wine"),
+    (BOOT + 149, "13-closing"),
 ]
 
 

@@ -3,3 +3,5 @@ edge-data/
 footage/*.mp4
 footage/projection.npz
 __pycache__/
+*.pt
+mobileclip_blt.ts

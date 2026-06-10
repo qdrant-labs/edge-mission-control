@@ -6,8 +6,10 @@ setup:
 	@command -v uv >/dev/null || (echo "uv not installed." && exit 1)
 	@command -v ffmpeg >/dev/null || (echo "ffmpeg not installed." && exit 1)
 	uv sync
-	@echo "Downloading embedding models..."
+	@echo "Downloading models (embedder, detector, captioner)..."
 	@uv run python -c "from app.encoder import get_encoder; get_encoder().warm()"
+	@uv run python -c "from app.detector import ObjectDetector; ObjectDetector().warm()"
+	@uv run python -c "from app.captioner import Captioner; Captioner().warm()"
 	@echo "Setup complete. Next: make footage prepare"
 
 footage:
@@ -19,7 +21,7 @@ footage:
 
 prepare:
 	uv run python scripts/prepare_footage.py
-	uv run python scripts/test_retrieval.py
+	uv run python scripts/test_objects.py
 
 run:
 	@docker ps --format '{{.Ports}}' | grep -q $(CLOUD_PORT) || \

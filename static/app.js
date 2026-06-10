@@ -1,5 +1,5 @@
 /* Qdrant Edge mission control: renders real events streamed from the backend.
-   Interactive by default (the user searches, cuts the link, explores the map).
+   Interactive by default (the user searches, cuts the link, teaches concepts).
    Append ?auto to the URL for the self-playing scripted version. */
 
 const $ = (id) => document.getElementById(id);
@@ -7,12 +7,15 @@ const AUTO = location.search.includes("auto");
 if (AUTO) document.body.classList.add("auto");
 
 const state = {
-  points: [],        // {x, y, born, hit, thumb, ts}
-  hits: [],
+  points: [],        // memory map dots: {x, y, born, hit, thumb, ts, kind, cls, obj}
+  objPoints: {},     // obj id -> index into points
+  tracks: new Map(), // overlay boxes: tid -> {cur, target, cls, obj, conf, seen}
+  inventory: {},     // obj id -> {el, cls, caption, thumb, t}
   lastQueryUs: null,
   edgeCount: 0,
+  objectCount: 0,
+  detectAvg: null,
   embedAvg: null,
-  upsertAvg: null,
   started: false,
   linkUp: true,
 };
@@ -52,7 +55,6 @@ function requestStart() {
 
 document.addEventListener("keydown", (e) => {
   if (e.code !== "Space") return;
-  // Space starts the demo from the title card; in inputs it types a space.
   if (!state.started && document.activeElement.tagName !== "INPUT") {
     e.preventDefault();
     requestStart();
@@ -75,15 +77,18 @@ function handle(ev) {
       }
       break;
     case "boot_line": bootLine(ev.text); break;
-    case "video_start": startVideo(); break;
+    case "video_start": startVideo(ev); break;
     case "frame_ingested": onFrame(ev); break;
+    case "object_discovered": onObject(ev); break;
+    case "object_enriched": onEnriched(ev); break;
+    case "inventory": onInventory(ev); break;
     case "query_typed": typeQuery(ev.text); break;
     case "query_result": showResults(ev); break;
     case "sync": onSync(ev); break;
     case "caption": showCaption(ev.text); break;
     case "scene": showScene(ev.title); break;
     case "mission_complete": onMissionComplete(ev); break;
-    case "label_added": $("label-input").value = ""; break;
+    case "label_added": onLabelAdded(ev.text); break;
     case "closing": showClosing(); break;
   }
 }
@@ -91,14 +96,15 @@ function handle(ev) {
 /* ---------- reset (a new run must not inherit the previous one) ---------- */
 function resetUI() {
   state.points.length = 0;
-  state.hits = [];
+  state.objPoints = {};
+  state.tracks.clear();
+  state.inventory = {};
   state.lastQueryUs = null;
   state.edgeCount = 0;
+  state.objectCount = 0;
+  state.detectAvg = null;
   state.embedAvg = null;
-  state.upsertAvg = null;
   state.linkUp = true;
-  lastLabels = [];
-  lastLabelTime = 0;
 
   const feed = $("feed");
   feed.pause();
@@ -111,6 +117,11 @@ function resetUI() {
   $("results").innerHTML = "";
   $("search-badge").textContent = "";
   $("search-badge").className = "";
+  $("inv-rail").innerHTML = "";
+  $("inv-facets").innerHTML = "";
+  $("inv-count").textContent = "0 unique objects";
+  $("watch-lines").innerHTML = "";
+  $("vocab-count").textContent = "";
   $("caption-text").classList.remove("show");
   $("caption-text").textContent = "";
   $("scene-badge").classList.remove("show");
@@ -119,15 +130,15 @@ function resetUI() {
   $("zoom-overlay").classList.add("hidden");
   $("map-tip").classList.add("hidden");
   $("replay-btn").classList.add("hidden");
-  $("hud-label-lines").innerHTML = `<span class="lbl-none">scanning…</span>`;
 
+  $("tick-detect").textContent = "—";
   $("tick-embed").textContent = "—";
   $("tick-upsert").textContent = "—";
   $("tick-count").textContent = "#0";
   $("m-vectors").textContent = "0";
+  $("m-objects").textContent = "0";
   $("m-disk").innerHTML = `0.0<small> MB</small>`;
-  $("m-embed").textContent = "—";
-  $("m-upsert").textContent = "—";
+  $("m-detect").textContent = "—";
   $("map-count").textContent = "0 vectors";
   $("s-queue").textContent = "0";
   $("s-cloud").textContent = "0";
@@ -149,8 +160,9 @@ function bootLine(text) {
   $("boot-terminal").appendChild(div);
 }
 
-function startVideo() {
+function startVideo(ev) {
   $("boot-overlay").classList.add("hidden");
+  if (ev && ev.vocab) $("vocab-count").textContent = `· ${ev.vocab} concepts`;
   $("feed").play();
   if (!AUTO) $("query-input").focus();
 }
@@ -158,39 +170,36 @@ function startVideo() {
 /* ---------- mission clock ---------- */
 setInterval(() => {
   const t = $("feed").currentTime;
-  const m = String(Math.floor(t / 60)).padStart(2, "0");
-  const s = String(Math.floor(t % 60)).padStart(2, "0");
-  $("mission-clock").textContent = `T+${m}:${s}`;
+  $("mission-clock").textContent = `T+${fmt(t)}`;
 }, 250);
 
 /* ---------- ingest ---------- */
 function onFrame(ev) {
   state.edgeCount = ev.count;
+  state.objectCount = ev.objects;
+  state.detectAvg = state.detectAvg === null ? ev.detect_ms : state.detectAvg * 0.8 + ev.detect_ms * 0.2;
   state.embedAvg = state.embedAvg === null ? ev.embed_ms : state.embedAvg * 0.8 + ev.embed_ms * 0.2;
-  state.upsertAvg = state.upsertAvg === null ? ev.upsert_us : state.upsertAvg * 0.8 + ev.upsert_us * 0.2;
 
   state.points.push({
     x: ev.xy[0], y: ev.xy[1],
     born: performance.now(), hit: 0,
-    thumb: ev.thumb, ts: ev.video_ts,
+    thumb: ev.thumb, ts: ev.video_ts, kind: "frame",
   });
 
+  updateBoxes(ev.boxes || []);
+
+  const total = ev.count + ev.objects;
+  $("tick-detect").textContent = `${ev.detect_ms.toFixed(0)}ms`;
   $("tick-embed").textContent = `${ev.embed_ms.toFixed(0)}ms`;
   $("tick-upsert").textContent = `${(ev.upsert_us / 1000).toFixed(1)}ms`;
-  $("tick-count").textContent = `#${ev.count}`;
-  $("m-vectors").textContent = ev.count;
+  $("tick-count").textContent = `#${total}`;
+  $("m-vectors").textContent = total;
+  $("m-objects").textContent = ev.objects;
   $("m-disk").innerHTML = `${(ev.bytes / 1e6).toFixed(1)}<small> MB</small>`;
-  $("m-embed").innerHTML = `${state.embedAvg.toFixed(0)}<small> ms</small>`;
-  $("m-upsert").innerHTML = `${(state.upsertAvg / 1000).toFixed(1)}<small> ms</small>`;
-  $("map-count").textContent = `${ev.count} vectors`;
-  $("s-edge").textContent = ev.count;
+  $("m-detect").innerHTML = `${state.detectAvg.toFixed(0)}<small> ms</small>`;
+  $("map-count").textContent = `${total} vectors`;
+  $("s-edge").textContent = total;
 
-  const flash = $("capture-flash");
-  flash.classList.remove("flash");
-  void flash.offsetWidth;
-  flash.classList.add("flash");
-
-  renderLabels(ev.labels || []);
   updateChips(ev.video_ts);
 }
 
@@ -204,32 +213,154 @@ function updateChips(ts) {
   });
 }
 
-/* Sticky label display: hold the last confident recognition briefly so the
-   HUD reads steadily instead of flickering frame to frame. */
-let lastLabels = [];
-let lastLabelTime = 0;
-function renderLabels(labels) {
+/* ---------- live detection overlay ---------- */
+const overlay = $("overlay");
+const octx = overlay.getContext("2d");
+
+function updateBoxes(boxes) {
   const now = performance.now();
-  if (labels.length) {
-    lastLabels = labels;
-    lastLabelTime = now;
-  } else if (now - lastLabelTime > 2500) {
-    lastLabels = [];
+  const seen = new Set();
+  for (const b of boxes) {
+    seen.add(b.tid);
+    const t = state.tracks.get(b.tid);
+    if (t) {
+      t.target = b.box;
+      t.cls = b.cls;
+      t.obj = b.obj;
+      t.conf = b.conf;
+      t.seen = now;
+    } else {
+      state.tracks.set(b.tid, {
+        cur: [...b.box], target: b.box,
+        cls: b.cls, obj: b.obj, conf: b.conf,
+        born: now, seen: now,
+      });
+    }
   }
-  const el = $("hud-label-lines");
-  if (!lastLabels.length) {
-    el.innerHTML = `<span class="lbl-none">scanning…</span>`;
-    return;
+  for (const [tid, t] of state.tracks) {
+    if (!seen.has(tid) && now - t.seen > 1100) state.tracks.delete(tid);
   }
-  el.innerHTML = lastLabels
-    .map(([name, score, pinned]) =>
-      pinned
-        ? `<span class="lbl-pinned">◎ ${name}<span class="lbl-score">${score.toFixed(2)}</span></span>`
-        : `▣ ${name}<span class="lbl-score">${score.toFixed(2)}</span>`)
-    .join("<br>");
 }
 
-/* ---------- search (interactive) ---------- */
+/* Video uses object-fit: cover — map normalized coords to the visible crop. */
+function contentRect(videoEl, w, h) {
+  const vw = videoEl.videoWidth || 1920, vh = videoEl.videoHeight || 1080;
+  const scale = Math.max(w / vw, h / vh);
+  const cw = vw * scale, ch = vh * scale;
+  return { x: (w - cw) / 2, y: (h - ch) / 2, w: cw, h: ch };
+}
+
+function drawOverlay(now, dt) {
+  const wrap = $("feed-wrap");
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  if (overlay.width !== w * 2) { overlay.width = w * 2; overlay.height = h * 2; }
+  const c = octx;
+  c.setTransform(2, 0, 0, 2, 0, 0);
+  c.clearRect(0, 0, w, h);
+  if (!state.tracks.size) return;
+
+  const r = contentRect($("feed"), w, h);
+  const k = 1 - Math.exp(-dt * 9);  // smooth pursuit between detection ticks
+
+  c.font = "600 12px " + getComputedStyle(document.body).fontFamily;
+  for (const t of state.tracks.values()) {
+    for (let i = 0; i < 4; i++) t.cur[i] += (t.target[i] - t.cur[i]) * k;
+    const age = (now - t.seen) / 1000;
+    if (age > 1.1) continue;
+    const fade = age < 0.7 ? 1 : 1 - (age - 0.7) / 0.4;
+    const birth = Math.min(1, (now - t.born) / 250);
+
+    const x = r.x + t.cur[0] * r.w, y = r.y + t.cur[1] * r.h;
+    const bw = (t.cur[2] - t.cur[0]) * r.w, bh = (t.cur[3] - t.cur[1]) * r.h;
+    const confirmed = !!t.obj;
+    const alpha = (confirmed ? 0.95 : 0.45) * fade * birth;
+
+    c.strokeStyle = confirmed ? `rgba(52, 240, 176, ${alpha})` : `rgba(138, 164, 255, ${alpha})`;
+    c.lineWidth = confirmed ? 1.6 : 1;
+    c.strokeRect(x, y, bw, bh);
+
+    if (confirmed && bw > 46) {
+      const label = t.cls;
+      const tw = c.measureText(label).width + 10;
+      c.fillStyle = `rgba(5, 5, 12, ${0.82 * fade})`;
+      c.fillRect(x - 0.8, y - 17, tw, 16);
+      c.fillStyle = `rgba(52, 240, 176, ${alpha})`;
+      c.fillText(label, x + 4, y - 5);
+    }
+  }
+}
+
+/* ---------- object inventory ---------- */
+function onObject(ev) {
+  state.objectCount = ev.total;
+  $("inv-count").textContent = `${ev.total} unique object${ev.total === 1 ? "" : "s"}`;
+
+  state.points.push({
+    x: ev.xy[0], y: ev.xy[1],
+    born: performance.now(), hit: 0,
+    thumb: ev.thumb, ts: ev.t, kind: "obj", cls: ev.cls, obj: ev.obj,
+  });
+  state.objPoints[ev.obj] = state.points.length - 1;
+
+  const card = document.createElement("div");
+  card.className = "inv-item";
+  card.innerHTML =
+    `<img src="data:image/jpeg;base64,${ev.thumb}"><span class="inv-cls">${ev.cls}</span>`;
+  card.addEventListener("click", () => {
+    const info = state.inventory[ev.obj];
+    showZoomRaw(ev.thumb,
+      `<b>${ev.obj} · ${ev.cls}</b> · first seen T+${fmt(ev.t)}` +
+      (info && info.caption ? `<br>“${info.caption}”` : ""));
+  });
+  state.inventory[ev.obj] = { el: card, cls: ev.cls, caption: null, thumb: ev.thumb, t: ev.t };
+
+  const rail = $("inv-rail");
+  rail.prepend(card);
+  while (rail.children.length > 90) rail.lastChild.remove();
+}
+
+function onEnriched(ev) {
+  const info = state.inventory[ev.obj];
+  if (info) {
+    info.caption = ev.caption;
+    info.el.title = `“${ev.caption}”`;
+    info.el.classList.add("captioned");
+  }
+}
+
+function onInventory(ev) {
+  const wrap = $("inv-facets");
+  wrap.innerHTML = "";
+  for (const [cls, count] of ev.classes.slice(0, 9)) {
+    const b = document.createElement("button");
+    b.className = "facet";
+    b.innerHTML = `${cls} <b>${count}</b>`;
+    b.addEventListener("click", () => {
+      $("query-input").value = cls;
+      runUserQuery(cls, cls);
+    });
+    wrap.appendChild(b);
+  }
+}
+
+/* ---------- open vocabulary: teach the detector a concept ---------- */
+$("label-input").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  const text = $("label-input").value.trim();
+  if (text) send({ cmd: "label", text });
+});
+
+function onLabelAdded(text) {
+  $("label-input").value = "";
+  const el = $("watch-lines");
+  const div = document.createElement("div");
+  div.className = "watch-line";
+  div.textContent = `◎ ${text}`;
+  el.prepend(div);
+  while (el.children.length > 3) el.lastChild.remove();
+}
+
+/* ---------- search ---------- */
 const input = $("query-input");
 input.addEventListener("keydown", (e) => {
   if (e.key !== "Enter") return;
@@ -244,20 +375,13 @@ document.querySelectorAll(".chip").forEach((chip) => {
   });
 });
 
-function runUserQuery(text) {
+function runUserQuery(text, cls) {
   $("results").innerHTML = "";
   const badge = $("search-badge");
   badge.textContent = "searching…";
   badge.className = "";
-  send({ cmd: "query", text });
+  send({ cmd: "query", text, cls: cls || null });
 }
-
-/* ---------- open vocabulary: teach the recognizer a concept ---------- */
-$("label-input").addEventListener("keydown", (e) => {
-  if (e.key !== "Enter") return;
-  const text = $("label-input").value.trim();
-  if (text) send({ cmd: "label", text });
-});
 
 /* ---------- search (auto mode typewriter) ---------- */
 let typeTimer = null;
@@ -273,60 +397,90 @@ function typeQuery(text) {
   }, Math.min(70, 1300 / text.length));
 }
 
-const WEAK_SCORE = 0.085;  // SigLIP2 band: real hits 0.10-0.20, absent <0.082
-
 function showResults(ev) {
-  if (ev.results.length === 0) {
+  const objects = ev.objects || [];
+  const moments = ev.moments || [];
+  if (!objects.length && !moments.length) {
     $("search-badge").textContent = "no memories yet";
     return;
   }
   state.lastQueryUs = ev.latency_us;
   const ms = ev.latency_us / 1000;
-  const topScore = Math.max(...ev.results.map((r) => r.score));
-  const weak = topScore < WEAK_SCORE;
+  const weak = objects.length === 0 || objects.every((o) => o.weak);
   const badge = $("search-badge");
   badge.textContent = weak
     ? `weak match · maybe not seen yet · ${ms.toFixed(2)} ms`
     : ev.offline
-      ? `${ms.toFixed(2)} ms · on-device · OFFLINE`
-      : `${ms.toFixed(2)} ms · on-device`;
+      ? `${ms.toFixed(2)} ms · hybrid · OFFLINE`
+      : `${ms.toFixed(2)} ms · hybrid · on-device`;
   badge.className = weak || ev.offline ? "off" : "";
 
   const wrap = $("results");
   wrap.innerHTML = "";
-  ev.results.forEach((r, i) => {
+
+  objects.forEach((o, i) => {
     const div = document.createElement("div");
-    div.className = weak ? "result weak" : "result";
+    div.className = o.weak ? "obj-card weak" : "obj-card";
     div.style.animationDelay = `${i * 90}ms`;
-    div.innerHTML = `<img src="data:image/jpeg;base64,${r.thumb}"><div class="score">${r.score.toFixed(3)}</div>`;
-    div.addEventListener("click", () => showZoom(r, ev.text));
+    const cap = o.caption
+      ? `“${o.caption}”`
+      : `<span class="capping">captioning…</span>`;
+    div.innerHTML =
+      `<img src="data:image/jpeg;base64,${o.thumb}">
+       <div class="obj-body">
+         <div class="obj-head"><span class="obj-cls">${o.cls}</span>
+           <span class="obj-score">${o.score !== null ? o.score.toFixed(3) : ""}</span></div>
+         <div class="obj-cap">${cap}</div>
+         <div class="obj-meta">seen T+${fmt(o.t_first)} · ${o.sightings || 1}× sightings</div>
+       </div>`;
+    div.addEventListener("click", () => showZoomRaw(o.thumb,
+      `<b>“${ev.text}”</b> · ${o.cls} · score ${o.score !== null ? o.score.toFixed(3) : "—"}` +
+      (o.caption ? `<br>“${o.caption}”` : "") +
+      `<br>first seen T+${fmt(o.t_first)} · last T+${fmt(o.t_last)}`));
     wrap.appendChild(div);
+
+    const idx = state.objPoints[o.obj];
+    if (idx !== undefined) { state.points[idx].hit = performance.now(); }
   });
 
-  // highlight hits on the memory map
-  const now = performance.now();
-  state.hits = [];
-  ev.results.forEach((r) => {
-    let best = -1, bestD = 1e9;
-    state.points.forEach((p, idx) => {
-      const d = (p.x - r.xy[0]) ** 2 + (p.y - r.xy[1]) ** 2;
-      if (d < bestD) { bestD = d; best = idx; }
+  if (moments.length) {
+    const head = document.createElement("div");
+    head.className = "moments-head";
+    head.textContent = "MOMENTS · full-frame matches";
+    wrap.appendChild(head);
+    const row = document.createElement("div");
+    row.className = "moments-row";
+    moments.forEach((r) => {
+      const d = document.createElement("div");
+      d.className = "result";
+      d.innerHTML = `<img src="data:image/jpeg;base64,${r.thumb}"><div class="score">${r.score.toFixed(3)}</div>`;
+      d.addEventListener("click", () => showZoomRaw(r.thumb,
+        `<b>“${ev.text}”</b> · score ${r.score.toFixed(3)} · remembered at T+${fmt(r.video_ts)}`));
+      row.appendChild(d);
+
+      let best = -1, bestD = 1e9;
+      state.points.forEach((p, idx) => {
+        if (p.kind !== "frame") return;
+        const dd = (p.x - r.xy[0]) ** 2 + (p.y - r.xy[1]) ** 2;
+        if (dd < bestD) { bestD = dd; best = idx; }
+      });
+      if (best >= 0) state.points[best].hit = performance.now();
     });
-    if (best >= 0) { state.points[best].hit = now; state.hits.push(best); }
-  });
+    wrap.appendChild(row);
+  }
 }
 
 function fmt(t) {
+  t = Math.max(0, t || 0);
   const m = String(Math.floor(t / 60)).padStart(2, "0");
   const s = String(Math.floor(t % 60)).padStart(2, "0");
   return `${m}:${s}`;
 }
 
 /* ---------- result zoom ---------- */
-function showZoom(r, query) {
-  $("zoom-img").src = `data:image/jpeg;base64,${r.thumb}`;
-  $("zoom-meta").innerHTML =
-    `<b>“${query}”</b> · score ${r.score.toFixed(3)} · remembered at T+${fmt(r.video_ts)}`;
+function showZoomRaw(thumbB64, metaHtml) {
+  $("zoom-img").src = `data:image/jpeg;base64,${thumbB64}`;
+  $("zoom-meta").innerHTML = metaHtml;
   $("zoom-overlay").classList.remove("hidden");
 }
 $("zoom-overlay").addEventListener("click", () => $("zoom-overlay").classList.add("hidden"));
@@ -344,9 +498,10 @@ function onSync(ev) {
   qf.style.width = `${Math.min(100, ev.queue * 1.2)}%`;
   qf.className = ev.queue > 40 ? "danger" : "";
   const cf = $("cloud-fill");
-  const pct = state.edgeCount ? (ev.cloud_count / state.edgeCount) * 100 : 0;
-  cf.style.width = `${pct}%`;
-  cf.className = pct >= 99.5 && state.edgeCount > 0 ? "done" : "";
+  const total = state.edgeCount + state.objectCount;
+  const pct = total ? (ev.cloud_count / total) * 100 : 0;
+  cf.style.width = `${Math.min(100, pct)}%`;
+  cf.className = pct >= 99.5 && total > 0 ? "done" : "";
 
   const pill = $("link-pill");
   if (ev.link_up) {
@@ -412,7 +567,9 @@ map.addEventListener("mousemove", (e) => {
   if (best >= 0) {
     const p = state.points[best];
     tip.querySelector("img").src = `data:image/jpeg;base64,${p.thumb}`;
-    tip.querySelector("span").textContent = `memory #${best + 1} · T+${fmt(p.ts)}`;
+    tip.querySelector("span").textContent = p.kind === "obj"
+      ? `${p.obj} · ${p.cls} · T+${fmt(p.ts)}`
+      : `memory #${best + 1} · T+${fmt(p.ts)}`;
     tip.style.left = `${Math.min(mx + 14, w - 190)}px`;
     tip.style.top = `${Math.min(my + 14, h - 140)}px`;
     tip.classList.remove("hidden");
@@ -449,6 +606,7 @@ function drawMap(now) {
     const age = (now - p.born) / 1000;
     const birth = Math.min(1, age / 0.6);
     const hitAge = p.hit ? (now - p.hit) / 1000 : 99;
+    const isObj = p.kind === "obj";
 
     if (age < 0.6) {
       c.beginPath();
@@ -460,12 +618,14 @@ function drawMap(now) {
     const isHit = hitAge < 6;
     const isHover = i === hoverIdx;
     c.beginPath();
-    c.arc(x, y, isHover ? 4.6 : isHit ? 3.8 : 2.6, 0, 7);
+    c.arc(x, y, isHover ? 4.6 : isHit ? 3.8 : isObj ? 3.1 : 2.6, 0, 7);
     c.fillStyle = isHover
       ? "rgba(52, 240, 176, 1)"
       : isHit
         ? `rgba(239, 45, 94, ${Math.max(0.65, 1 - hitAge / 8)})`
-        : `rgba(138, 164, 255, ${0.45 + 0.4 * birth})`;
+        : isObj
+          ? `rgba(255, 190, 102, ${0.55 + 0.35 * birth})`
+          : `rgba(138, 164, 255, ${0.45 + 0.4 * birth})`;
     c.fill();
 
     if (isHit && hitAge < 1.6) {
@@ -532,7 +692,11 @@ function drawLat() {
   c.fillText("cloud round trip (typical)", cloudX + 18, legY);
 }
 
+let lastTick = performance.now();
 function loop(now) {
+  const dt = Math.min(0.1, (now - lastTick) / 1000);
+  lastTick = now;
+  drawOverlay(now, dt);
   drawMap(now);
   drawLat();
   requestAnimationFrame(loop);

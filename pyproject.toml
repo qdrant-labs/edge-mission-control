@@ -13,6 +13,12 @@ dependencies = [
     "uvicorn>=0.30.0",
     "websockets>=13.0",
     "qdrant-client>=1.16.2",
+    "torch>=2.9",
+    "torchvision>=0.27",
+    "ultralytics>=8.4",
+    "transformers>=5.10",
+    "clip-anytorch>=2.6",
+    "lap>=0.5.12",
 ]
 
 [tool.uv]

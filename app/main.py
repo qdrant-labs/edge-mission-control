@@ -6,7 +6,9 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from .captioner import Captioner
 from .constants import MISSION_VIDEO, PROJECT_ROOT
+from .detector import ObjectDetector
 from .director import Director
 from .encoder import get_encoder
 from .session import DemoSession
@@ -43,6 +45,8 @@ class Hub:
 
 hub = Hub()
 encoder = get_encoder()
+detector = ObjectDetector()
+captioner = Captioner()
 session: DemoSession | None = None
 demo_lock = asyncio.Lock()
 demo_running = False
@@ -51,8 +55,10 @@ demo_running = False
 @app.on_event("startup")
 async def startup():
     hub.loop = asyncio.get_running_loop()
-    logger.info("Warming embedding models...")
+    logger.info("Warming models (encoder, detector, captioner)...")
     await asyncio.to_thread(encoder.warm)
+    await asyncio.to_thread(detector.warm)
+    await asyncio.to_thread(captioner.warm)
     logger.info("Models warm. Ready to run.")
 
 
@@ -66,7 +72,7 @@ async def run_demo(mode: str):
     try:
         if session is not None:
             session.shutdown()
-        session = DemoSession(encoder, hub.emit)
+        session = DemoSession(encoder, detector, captioner, hub.emit)
 
         if mode == "auto":
             await session.start(boot_delay=1.1)
@@ -110,9 +116,10 @@ async def websocket_endpoint(ws: WebSocket):
                     asyncio.create_task(run_demo(msg.get("mode", "interactive")))
             elif cmd == "query":
                 text = (msg.get("text") or "").strip()[:120]
+                cls = (msg.get("cls") or "").strip()[:60] or None
                 if text and session is not None:
-                    logger.info("User query: %r", text)
-                    asyncio.create_task(session.run_query(text))
+                    logger.info("User query: %r (cls=%r)", text, cls)
+                    asyncio.create_task(session.run_query(text, cls=cls))
             elif cmd == "link":
                 if session is not None:
                     session.set_link(bool(msg.get("up")))
@@ -120,7 +127,7 @@ async def websocket_endpoint(ws: WebSocket):
                 text = (msg.get("text") or "").strip()[:60]
                 if text and session is not None:
                     logger.info("Teach concept: %r", text)
-                    asyncio.create_task(session.add_label(text))
+                    asyncio.create_task(session.teach(text))
     except WebSocketDisconnect:
         hub.sockets.discard(ws)
         logger.info("Browser disconnected (%d active)", len(hub.sockets))

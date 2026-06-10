@@ -38,23 +38,28 @@ async def main():
                     issues.append("frame without thumbnail")
                 if not (0 <= ev["xy"][0] <= 1.1 and 0 <= ev["xy"][1] <= 1.1):
                     issues.append(f"projection out of range: {ev['xy']}")
+            if ev["type"] == "object_discovered":
+                if not ev["thumb"]:
+                    issues.append(f"object {ev['obj']} without crop thumbnail")
             if ev["type"] == "query_result":
                 queries.append(ev)
-                if len(ev["results"]) == 0:
-                    issues.append(f"query '{ev['text']}' returned no results")
-                if any(not r["thumb"] for r in ev["results"]):
+                if len(ev["objects"]) == 0:
+                    issues.append(f"query '{ev['text']}' returned no objects")
+                if any(not r["thumb"] for r in ev["objects"] + ev["moments"]):
                     issues.append(f"query '{ev['text']}' has missing thumbs")
 
     print("Event counts:", dict(counts))
     for q in queries:
-        tops = ", ".join(f"T+{r['video_ts']:.0f}s ({r['score']})" for r in q["results"])
+        tops = ", ".join(
+            f"{r['cls']}@{r['t_first']:.0f}s ({r['score']})" for r in q["objects"])
         print(f"query '{q['text']}': {q['latency_us']}us offline={q['offline']} -> {tops}")
     if issues:
         print("ISSUES:")
         for i in issues:
             print(" -", i)
         sys.exit(1)
-    required = {"boot_line", "video_start", "frame_ingested", "caption", "sync", "scene"}
+    required = {"boot_line", "video_start", "frame_ingested", "caption", "sync",
+                "scene", "object_discovered", "object_enriched", "inventory"}
     missing = required - set(counts)
     if missing:
         print("MISSING EVENT TYPES:", missing)
