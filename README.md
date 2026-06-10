@@ -6,6 +6,9 @@ network in the loop.
 
 ![Mission control during the patrol: live detection boxes over the dining room, a search for a leather lounge chair returning captioned object crops in 0.29 ms, and the object inventory rail filling up](docs/screenshots/mission-control-object-memory.png)
 
+[Watch the full 2:35 demo run](docs/screenshots/edge-demo.mp4): detection,
+search, link loss, live teaching, and reconnect, end to end.
+
 A home robot patrols a house. Every object it sees becomes an individual,
 searchable memory, entirely on the device:
 

@@ -5,3 +5,4 @@ footage/projection.npz
 __pycache__/
 *.pt
 mobileclip_blt.ts
+docs/screenshots/edge-vsd-demo-final.mp4
