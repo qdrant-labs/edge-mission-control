@@ -1,5 +1,5 @@
 """Headless end-to-end check: trigger the demo over WebSocket and verify the
-event stream covers every subsystem (boot, ingest, query, sync, captions).
+event stream covers every subsystem (boot, ingest, objects, queries).
 
 Assumes the server is already running on localhost:8000.
 Run: uv run python scripts/smoke_test.py [seconds]
@@ -58,7 +58,7 @@ async def main():
         for i in issues:
             print(" -", i)
         sys.exit(1)
-    required = {"boot_line", "video_start", "frame_ingested", "caption",
+    required = {"boot_line", "video_start", "frame_ingested",
                 "scene", "object_discovered", "object_enriched", "inventory"}
     missing = required - set(counts)
     if missing:

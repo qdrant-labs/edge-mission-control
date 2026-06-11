@@ -26,7 +26,6 @@ BOOT_LINES = [
     "dense: siglip2-base · 768d · cosine   sparse: bm25 over captions",
     "detector: yoloe-11l · open vocabulary · on-device",
     "captioner: florence-2-base · enriching every object it meets",
-    "network: NOT REQUIRED · nothing leaves this device",
     "0 objects remembered · patrol start",
 ]
 
@@ -158,8 +157,6 @@ class DemoSession:
         if not added:
             return
         self.emit({"type": "label_added", "text": text})
-        self.emit({"type": "caption",
-                   "text": f"Now watching for “{text}”. One text embedding, no retraining."})
 
     def shutdown(self):
         self.ready = False

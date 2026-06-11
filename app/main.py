@@ -78,21 +78,17 @@ async def run_demo(mode: str):
             await session.start(boot_delay=1.1)
             director = Director(session, hub.emit)
             await director.run_timeline()
-            # Let the tail of the video and the final sync play out.
+            # Let the tail of the video play out.
             await asyncio.sleep(8)
             session.shutdown()
         else:
             await session.start(boot_delay=0.55)
-            hub.emit({"type": "caption",
-                      "text": "Search anything you remember. Teach a concept. Hover the memory map."})
             # Silent warm-up so the user's first search shows steady-state latency.
             await asyncio.sleep(2.5)
             await session.warm_query()
             # Stay live until the mission video ends; the pipeline announces
             # mission_complete itself. Memory remains searchable afterwards.
             await asyncio.to_thread(session.pipeline.thread.join)
-            hub.emit({"type": "caption",
-                      "text": "Mission complete. The memory stays searchable, entirely on-device."})
     finally:
         demo_running = False
 

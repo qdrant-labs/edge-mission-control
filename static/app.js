@@ -83,7 +83,6 @@ function handle(ev) {
     case "inventory": onInventory(ev); break;
     case "query_typed": typeQuery(ev.text); break;
     case "query_result": showResults(ev); break;
-    case "caption": showCaption(ev.text); break;
     case "scene": showScene(ev.title); break;
     case "mission_complete": onMissionComplete(ev); break;
     case "label_added": onLabelAdded(ev.text); break;
@@ -119,8 +118,6 @@ function resetUI() {
   $("inv-count").textContent = "0 unique objects";
   $("watch-lines").innerHTML = "";
   $("vocab-count").textContent = "";
-  $("caption-text").classList.remove("show");
-  $("caption-text").textContent = "";
   $("scene-badge").classList.remove("show");
   $("scene-badge").textContent = "";
   $("closing-overlay").classList.add("hidden");
@@ -239,7 +236,11 @@ function contentRect(videoEl, w, h) {
 function drawOverlay(now, dt) {
   const wrap = $("feed-wrap");
   const w = wrap.clientWidth, h = wrap.clientHeight;
-  if (overlay.width !== w * 2) { overlay.width = w * 2; overlay.height = h * 2; }
+  // Re-allocate on EITHER dimension change: a stale-height bitmap gets
+  // stretched by CSS and smears strokes into bands.
+  if (overlay.width !== w * 2 || overlay.height !== h * 2) {
+    overlay.width = w * 2; overlay.height = h * 2;
+  }
   const c = octx;
   c.setTransform(2, 0, 0, 2, 0, 0);
   c.clearRect(0, 0, w, h);
@@ -248,7 +249,7 @@ function drawOverlay(now, dt) {
   const r = contentRect($("feed"), w, h);
   const k = 1 - Math.exp(-dt * 9);  // smooth pursuit between detection ticks
 
-  c.font = "600 12px " + getComputedStyle(document.body).fontFamily;
+  c.font = "600 13.5px " + getComputedStyle(document.body).fontFamily;
   for (const t of state.tracks.values()) {
     for (let i = 0; i < 4; i++) t.cur[i] += (t.target[i] - t.cur[i]) * k;
     const age = (now - t.seen) / 1000;
@@ -267,11 +268,11 @@ function drawOverlay(now, dt) {
 
     if (confirmed && bw > 46) {
       const label = t.cls;
-      const tw = c.measureText(label).width + 10;
+      const tw = c.measureText(label).width + 11;
       c.fillStyle = `rgba(5, 5, 12, ${0.82 * fade})`;
-      c.fillRect(x - 0.8, y - 17, tw, 16);
+      c.fillRect(x - 0.8, y - 20, tw, 19);
       c.fillStyle = `rgba(52, 240, 176, ${alpha})`;
-      c.fillText(label, x + 4, y - 5);
+      c.fillText(label, x + 4, y - 6);
     }
   }
 }
@@ -470,17 +471,6 @@ function showZoomRaw(thumbB64, metaHtml) {
 $("zoom-overlay").addEventListener("click", () => $("zoom-overlay").classList.add("hidden"));
 
 /* ---------- narrative ---------- */
-let captionTimer = null;
-function showCaption(text) {
-  const el = $("caption-text");
-  clearTimeout(captionTimer);
-  el.classList.remove("show");
-  captionTimer = setTimeout(() => {
-    el.textContent = text;
-    el.classList.add("show");
-  }, 350);
-}
-
 function showScene(title) {
   const el = $("scene-badge");
   el.textContent = title;
@@ -538,7 +528,7 @@ map.addEventListener("mouseleave", () => {
 
 function drawMap(now) {
   const w = map.clientWidth, h = map.clientHeight;
-  if (map.width !== w * 2) { map.width = w * 2; map.height = h * 2; }
+  if (map.width !== w * 2 || map.height !== h * 2) { map.width = w * 2; map.height = h * 2; }
   const c = mctx;
   c.setTransform(2, 0, 0, 2, 0, 0);
   c.clearRect(0, 0, w, h);
@@ -604,7 +594,7 @@ function lx(ms, w) {
 
 function drawLat() {
   const w = lat.clientWidth, h = lat.clientHeight;
-  if (lat.width !== w * 2) { lat.width = w * 2; lat.height = h * 2; }
+  if (lat.width !== w * 2 || lat.height !== h * 2) { lat.width = w * 2; lat.height = h * 2; }
   const c = lctx;
   c.setTransform(2, 0, 0, 2, 0, 0);
   c.clearRect(0, 0, w, h);

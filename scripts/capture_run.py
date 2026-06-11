@@ -12,8 +12,8 @@ from playwright.sync_api import sync_playwright
 OUT = Path("/tmp/edge-shots")
 OUT.mkdir(exist_ok=True)
 
-# (seconds after pressing space, name). Boot takes ~8.2s, then video starts.
-BOOT = 8.5
+# (seconds after pressing space, name). Boot takes ~7.1s, then video starts.
+BOOT = 7.4
 SHOTS = [
     (1.5, "01-title-boot"),
     (5.0, "02-boot-terminal"),
