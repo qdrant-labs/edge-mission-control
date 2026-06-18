@@ -4,6 +4,8 @@ An interactive demo of [Qdrant Edge](https://qdrant.tech/edge/): an in-process
 vector search engine running inside one Python process, with no server and no
 network in the loop.
 
+See the [Live Demo](https://qdrant-edge-mission-control.vercel.app/)
+
 ![Mission control during the patrol: live detection boxes over the dining room, a search for a leather lounge chair returning captioned object crops in 0.29 ms, and the object inventory rail filling up](docs/screenshots/mission-control-object-memory.png)
 
 [Watch the full 2:35 demo run](docs/screenshots/edge-demo.mp4): detection,
