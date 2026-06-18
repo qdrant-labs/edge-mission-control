@@ -1,8 +1,24 @@
+# Python
 .venv/
-edge-data/
-footage/*.mp4
-footage/projection.npz
 __pycache__/
+
+# Model weights (downloaded on setup, multi-GB)
 *.pt
 mobileclip_blt.ts
+
+# Generated shard + thumbnails (rebuilt by the pipeline / bake)
+edge-data/
+
+# Source footage (downloaded from Pexels; mission.mp4 is stitched locally)
+footage/*.mp4
+footage/projection.npz
+
+# Large demo recording
 docs/screenshots/edge-vsd-demo-final.mp4
+
+# Node tooling (scripts/ web-search validator)
+node_modules/
+scripts/package-lock.json
+
+# Vercel deploy metadata
+.vercel/

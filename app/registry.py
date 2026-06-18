@@ -197,6 +197,7 @@ class ObjectRegistry:
             "obj": rec.label,
             "cls": rec.cls,
             "thumb": thumb_b64,
+            "thumb_name": rec.thumb_name,
             "t": round(video_ts, 2),
             "xy": [round(rec.xy[0], 4), round(rec.xy[1], 4)],
             "upsert_us": round(upsert_us, 1),

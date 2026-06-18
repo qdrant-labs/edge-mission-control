@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Qdrant Edge · Mission Control</title>
+<meta name="description" content="Qdrant Edge: an in-process vector search engine that runs entirely on your device. A home robot turns everything it sees into searchable object memory. No server, no network.">
+<link rel="stylesheet" href="style.css?v=web2">
+</head>
+<body>
+
+<div id="app">
+  <header id="topbar">
+    <div class="brand">
+      <img class="brand-img" src="brand/qdrant-brandmark-white.svg" alt="Qdrant">
+      <span class="brand-name">QDRANT <b>EDGE</b></span>
+      <span class="brand-sep">·</span>
+      <span class="brand-sub">Mission Control</span>
+    </div>
+    <div id="demo-badge" title="Public browser demo. Search runs locally in your browser. The latencies shown are representative: a native on-device Qdrant Edge deployment is faster and loads no model.">
+      <span class="demo-dot"></span>Demo · In-Browser · Latencies Representative
+    </div>
+    <button id="replay-btn" class="hidden">⟳ REPLAY MISSION</button>
+    <div class="unit-tag">
+      <span class="unit-dot"></span> EDGE-01 · HOME UNIT
+    </div>
+  </header>
+
+  <main id="grid">
+    <div id="left-col">
+      <section id="feed-panel" class="panel">
+        <div class="panel-title">LIVE FEED <span id="mission-clock">T+00:00</span></div>
+        <div id="feed-wrap">
+          <video id="feed" src="mission.mp4" muted playsinline preload="auto"></video>
+          <canvas id="overlay"></canvas>
+          <div class="hud">
+            <div class="hud-corner tl"></div><div class="hud-corner tr"></div>
+            <div class="hud-corner bl"></div><div class="hud-corner br"></div>
+            <div class="hud-rec"><span class="rec-dot"></span>REC</div>
+            <div id="hud-labels">
+              <div class="hud-labels-title">DETECTOR · OPEN VOCABULARY <span id="vocab-count"></span></div>
+              <div id="watch-lines"></div>
+              <input id="label-input" type="text" autocomplete="off" spellcheck="false"
+                     placeholder="+ teach a concept…">
+            </div>
+            <div id="capture-flash"></div>
+            <div id="pipeline-ticker">
+              <span class="tick-label">LOOP</span>
+              <span class="tick-step">detect <b id="tick-detect">—</b></span><span class="tick-arrow">→</span>
+              <span class="tick-step">embed <b id="tick-embed">—</b></span><span class="tick-arrow">→</span>
+              <span class="tick-step">store <b id="tick-upsert">—</b></span><span class="tick-arrow">→</span>
+              <span class="tick-step">memory <b id="tick-count">0</b></span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="inventory-panel">
+        <div class="panel-title">OBJECT MEMORY
+          <span id="inv-count">0 unique objects</span>
+        </div>
+        <div id="inv-facets"></div>
+        <div id="inv-rail"></div>
+      </section>
+    </div>
+
+    <aside id="side">
+      <section class="panel" id="map-panel">
+        <div class="panel-title">ON-DEVICE MEMORY <span id="map-count">0 vectors</span></div>
+        <canvas id="map"></canvas>
+        <div id="map-tip" class="hidden"><img alt=""><span></span></div>
+      </section>
+
+      <section class="panel" id="metrics-panel">
+        <div class="metrics-row">
+          <div class="metric"><div class="metric-value" id="m-vectors">0</div><div class="metric-label">Vectors</div></div>
+          <div class="metric"><div class="metric-value" id="m-objects">0</div><div class="metric-label">Objects</div></div>
+          <div class="metric"><div class="metric-value" id="m-disk">0.0<small> MB</small></div><div class="metric-label">Shard On Disk</div></div>
+          <div class="metric"><div class="metric-value" id="m-detect">—</div><div class="metric-label">Detect / Frame</div></div>
+        </div>
+        <div class="lat-strip">
+          <div class="lat-title">SEARCH LATENCY <span class="lat-scale">log scale · representative</span></div>
+          <canvas id="latbar"></canvas>
+        </div>
+      </section>
+
+      <section class="panel" id="search-panel">
+        <div class="panel-title">SEARCH OBJECT MEMORY <span id="search-badge"></span></div>
+        <div id="query-box">
+          <span class="prompt">›</span>
+          <input id="query-input" type="text" autocomplete="off" spellcheck="false"
+                 placeholder="search every object the robot has seen…">
+        </div>
+        <div id="chips" aria-label="search suggestions"></div>
+        <div id="results"></div>
+      </section>
+
+    </aside>
+  </main>
+</div>
+
+<div id="title-overlay" class="overlay">
+  <div class="title-card">
+    <div class="title-logo">
+      <img class="logo-img" src="brand/qdrant-logo-white.svg" alt="Qdrant">
+      <span class="logo-edge">EDGE</span>
+    </div>
+    <div class="title-sub">Vector search, in-process, where AI operates</div>
+    <div class="title-hint">press space to begin</div>
+  </div>
+</div>
+
+<div id="boot-overlay" class="overlay hidden">
+  <div id="boot-terminal"></div>
+</div>
+
+<div id="zoom-overlay" class="hidden">
+  <div id="zoom-card">
+    <img id="zoom-img" alt="memory">
+    <div id="zoom-meta"></div>
+  </div>
+</div>
+
+<script src="search.js?v=web2"></script>
+<script src="replay.js?v=web2"></script>
+<script src="app.js?v=web2"></script>
+</body>
+</html>
