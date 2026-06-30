@@ -20,6 +20,11 @@ const state = {
 /* ---------- transport: replay the baked timeline, no server ---------- */
 const thumbURL = (name) => (name ? `thumbs/${name}` : "");
 
+// Kiosk mode (?auto): the patrol loops on its own instead of stopping at the
+// end and waiting for a manual replay.
+const AUTO = new URLSearchParams(location.search).has("auto");
+const LOOP_PAUSE_MS = 4000;  // hold the finished state before running again
+
 function setHint(text) {
   const el = document.querySelector(".title-hint");
   if (el) el.textContent = text;
@@ -325,6 +330,7 @@ function renderPills(texts) {
     if (!want.has(el.dataset.q)) el.remove();
   }
   const have = new Set([...wrap.children].map((el) => el.dataset.q));
+  let fresh = null;
   for (const text of texts) {
     if (have.has(text)) continue;
     const b = document.createElement("button");
@@ -333,6 +339,13 @@ function renderPills(texts) {
     b.textContent = text;
     b.addEventListener("click", () => { input.value = text; runUserQuery(text); });
     wrap.appendChild(b);
+    fresh = text;
+  }
+  // Kiosk mode: when a new suggestion surfaces (the robot has just seen the
+  // thing), run that search on its own so the demo drives itself.
+  if (AUTO && fresh) {
+    input.value = fresh;
+    runUserQuery(fresh);
   }
 }
 window.renderPills = renderPills;
@@ -439,6 +452,10 @@ function showZoomRaw(thumbName, metaHtml) {
 $("zoom-overlay").addEventListener("click", () => $("zoom-overlay").classList.add("hidden"));
 
 function onMissionComplete(ev) {
+  if (AUTO) {
+    setTimeout(() => Replay.restart(), LOOP_PAUSE_MS);  // loop for kiosk display
+    return;
+  }
   $("replay-btn").classList.remove("hidden");
 }
 $("replay-btn").addEventListener("click", () => Replay.restart());
